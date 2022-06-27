@@ -16,7 +16,9 @@ def write_otf2_trace(fp_in, fp_out, timer_res):
                                                                io_paradigm_class=otf2.IoParadigmClass.SERIAL,
                                                                io_paradigm_flags=otf2.IoParadigmFlag.NONE)
 
-        regions = {name: trace.definitions.region(name) for name in functions}
+        regions = {name: trace.definitions.region(name,
+                                                  source_file="GENERIC I/O",
+                                                  region_role=otf2.RegionRole.FILE_IO) for name in functions}
         io_files = {file_name: trace.definitions.io_regular_file(file_name, scope=generic_system_tree_node) for file_name in files}
         io_handles = {file_name: trace.definitions.io_handle(file=io_files.get(file_name),
                                                                                 name=file_name,
@@ -44,10 +46,10 @@ def write_otf2_trace(fp_in, fp_out, timer_res):
 
             writer.enter(event.get_start_time_ticks(timer_res) - t_start,
                          regions.get(event.function))
-
+            s = 0
             if event.function in ["read", "write"]:
                 file_name = event.args[0].decode("utf-8")
-                size = int.from_bytes(event.args[2], "big")
+                size = int(event.args[2].decode("utf-8"))
                 writer.io_operation_begin(time=event.get_start_time_ticks(timer_res) - t_start,
                                           handle=io_handles.get(file_name),
                                           mode=io_mode,
@@ -63,8 +65,8 @@ def write_otf2_trace(fp_in, fp_out, timer_res):
             elif event.function == "lseek":
                 #whence = otf2.IoSeekOption(int.from_bytes(event.args[2], "big"))
                 file_name = event.args[0].decode("utf-8")
-                whence = otf2.IoSeekOption(int.from_bytes(event.args[2], "big"))
-                size = int.from_bytes(event.args[1], "big")
+                whence = otf2.IoSeekOption(int(event.args[2].decode("utf-8")))
+                size = int(event.args[1].decode("utf-8"))
                 writer.io_seek(time=event.get_start_time_ticks(timer_res) - t_start,
                                handle=io_handles.get(file_name),
                                offset_request=size,
