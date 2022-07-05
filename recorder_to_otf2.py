@@ -39,9 +39,14 @@ def write_otf2_trace(fp_in, fp_out, timer_res):
         t_start = 0
 
         for rank_id in range(rank_count):
+            print(f"rank {rank_id}/{rank_count}")
             writer = trace.event_writer_from_location(locations.get(f"rank {rank_id}"))
-            for event in sorted([e for e in events if (e.rank_id == rank_id and not(e.function.startswith("__") or e.function.startswith("MPI")))], key=lambda x: x.start_time):
+            for event in sorted([e for e in events if e.rank_id == rank_id and not (e.function.startswith("__") or e.function == "MPI_Bcast")], key=lambda x: x.start_time):
+                # if event.start_time > event.end_time:
+                #     print("SUS:", event.function)
+                #     continue
 
+                # print(event.function, event.start_time, event.end_time, event.rank_id)
                 if regions.get(event.function) is None:
                     s = "MPI I/O" if event.function.startswith("MPI") else "POSIX I/O"
                     regions[event.function] = trace.definitions.region(event.function,
