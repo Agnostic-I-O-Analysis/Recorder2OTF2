@@ -1,5 +1,6 @@
 import recorder_viz
-from event import Event
+from Events import Event
+
 
 def get_stats_from_recorder(fp):
 
@@ -21,6 +22,6 @@ def get_stats_from_recorder(fp):
             for j in range(arg_count):
                 largs.append(args[j])
 
-            events.append(Event(rank_id, function, start_time, end_time, level, tid, largs))
+            events.append(Event.get_event(rank_id, function, start_time, end_time, level, tid, largs))
 
     return files, func_names, events, reader.GM.total_ranks

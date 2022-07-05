@@ -1,0 +1,24 @@
+O_RDONLY = 0o0
+O_WRONLY = 0o1
+O_RDWR = 0o2
+O_CREAT = 0o100
+O_EXCL = 0o200
+O_NOCTTY = 0o400
+O_TRUNC = 0o1000
+O_APPEND = 0o2000
+O_NONBLOCK = 0o4000
+O_DSYNC = 0o10000
+FASYNC = 0o20000
+O_DIRECT = 0o40000
+O_LARGEFILE = 0o100000
+O_DIRECTORY = 0o200000
+O_NOFOLLOW = 0o400000
+O_NOATIME = 0o1000000
+O_CLOEXEC = 0o2000000
+
+
+def check_flag(n, flag):
+    n = n & flag
+    if n > 0:
+        return True
+    return False
