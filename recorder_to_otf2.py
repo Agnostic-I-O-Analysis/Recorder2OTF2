@@ -52,7 +52,7 @@ def write_otf2_trace(fp_in, fp_out, timer_res):
                     regions[event.function] = trace.definitions.region(event.function,
                                                                        source_file=s,
                                                                        region_role=otf2.RegionRole.FILE_IO)
-
+                print(event.function)
                 writer.enter(event.get_start_time_ticks(timer_res) - t_start,
                              regions.get(event.function))
 
@@ -70,14 +70,15 @@ def write_otf2_trace(fp_in, fp_out, timer_res):
                                                  bytes_result=event.size,
                                                  matching_id=event.level)
 
-                if isinstance(event, Events.SeekEvent):
+                if isinstance(event, Events.IoSeekEvent):
                     writer.io_seek(time=event.get_start_time_ticks(timer_res) - t_start,
                                    handle=io_handles.get(event.path_name),
                                    offset_request=event.offset,
+                                   # IoSeekOption ?
                                    whence=event.whence,
                                    offset_result=event.offset)
 
-                elif isinstance(event, Events.OpenEvent):
+                elif isinstance(event, Events.IoCreateHandleEvent):
 
                     # create handle:
                     if io_handles.get(event.path_name) is None:
@@ -98,7 +99,7 @@ def write_otf2_trace(fp_in, fp_out, timer_res):
                                             creation_flags=otf2.IoCreationFlag.NONE,
                                             status_flags=sf)
 
-                elif isinstance(event, Events.CloseEvent):
+                elif isinstance(event, Events.IoDestroyHandleEvent):
                     writer.io_destroy_handle(time=event.get_start_time_ticks(timer_res) - t_start,
                                              handle=io_handles.get(event.path_name))
 

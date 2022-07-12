@@ -1,17 +1,27 @@
 import math
 from abc import ABC
+
+import otf2.definitions
 import constants
 
 
 class Event(ABC):
 
-    def __init__(self, rank_id, function, start_time, end_time, level, tid, args):
+    def __init__(self, rank_id, function, start_time, end_time, level, tid):
         self.rank_id = rank_id
         self.function = function
         self.start_time = start_time
         self.end_time = end_time
         self.level = level
         self.tid = tid
+        self.paradigm = None
+
+        # set paradigm
+        if function in ["creat", "creat64", "open", "open64", "close", "read", "write", "pread", "pwrite", "pread64",
+                        "pwrite64", "readv", "writev", "lseek", "lseek64"]:
+            self.paradigm = "POSIX"
+        elif function in ["fopen", "fopen64", "fseek", "fread", "fwrite"]:
+            self.paradigm = "ISOC"
 
     def get_start_time_ticks(self, timer_resolution):
         return math.ceil(self.start_time*timer_resolution)
@@ -21,76 +31,86 @@ class Event(ABC):
 
     @classmethod
     def get_event(cls, rank_id, function, start_time, end_time, level, tid, args):
-        if function in ["creat", "creat64", "open", "open64", "fopen", "fopen64"]:
-            return OpenEvent(rank_id, function, start_time, end_time, level, tid, args)
+
+        if function in ["creat", "creat64", "open", "open64", "fopen", "fopen64", "fdopen"]:
+            return IoCreateHandleEvent(rank_id, function, start_time, end_time, level, tid, args)
         elif function in ["close", "fclose"]:
-            return CloseEvent(rank_id, function, start_time, end_time, level, tid, args)
-        elif function in ["read", "write", "pread", "pwrite", "pread64", "pwrite64", "readv", "writev"]:
+            return IoDestroyHandleEvent(rank_id, function, start_time, end_time, level, tid, args)
+        elif function in ["read", "write", "pread", "pwrite", "pread64", "pwrite64", "readv", "writev", "fread", "fwrite"]:
             return IoEvent(rank_id, function, start_time, end_time, level, tid, args)
         elif function in ["lseek", "lseek64", "fseek"]:
-            return SeekEvent(rank_id, function, start_time, end_time, level, tid, args)
+            return IoSeekEvent(rank_id, function, start_time, end_time, level, tid, args)
         else:
             #print(f"NOT IMPLEMENTED: {function}")
             return PlaceholderEvent(rank_id, function, start_time, end_time, level, tid, args)
 
 
-class OpenEvent(Event):
+class IoCreateHandleEvent(Event):
 
     def __init__(self, rank_id, function, start_time, end_time, level, tid, args):
-        super(OpenEvent, self).__init__(rank_id, function, start_time, end_time, level, tid, args)
+        super(IoCreateHandleEvent, self).__init__(rank_id, function, start_time, end_time, level, tid)
 
         self.path_name = None
-        self.paradigm = None
 
         self.type = None
         self.status = None
 
-        if function in ["creat", "creat64", "open", "open64"]:
+        # posix
+        if self.paradigm == "POSIX":
 
             self.path_name = args[0].decode("utf-8")
-            self.paradigm = "POSIX"
             self.type = int(args[1].decode("utf-8"), 8)
             if constants.check_flag(self.type, constants.O_RDONLY):
-                self.type = 0
+                self.type = otf2.definitions.IoAccessMode.READ_ONLY.value
             elif constants.check_flag(self.type, constants.O_WRONLY):
-                self.type = 1
+                self.type = otf2.definitions.IoAccessMode.WRITE_ONLY.value
             elif constants.check_flag(self.type, constants.O_RDWR):
-                self.type = 2
+                self.type = otf2.definitions.IoAccessMode.READ_WRITE.value
 
             if constants.check_flag(self.type, constants.O_CREAT):
                 self.status = int(args[2].decode("utf-8"), 8)
 
-        if function in ["fopen", "fopen64"]:
+        # isoc
+        if self.paradigm == "ISOC":
 
             self.path_name = args[0].decode("utf-8")
-            self.paradigm = "POSIX"
             self.type = args[1].decode("utf-8")
             if self.type in ["r"]:
-                self.type = 0
-            elif self.type in  ["w", "a"]:
-                self.type = 1
+                self.type = otf2.definitions.IoAccessMode.READ_ONLY.value
+            elif self.type in ["w", "a"]:
+                self.type = otf2.definitions.IoAccessMode.WRITE_ONLY.value
             elif self.type in ["r+", "w+", "a+"]:
-                self.type = 2
+                self.type = otf2.definitions.IoAccessMode.READ_WRITE.value
 
             if self.type in ["a", "a+"]:
                 self.status = constants.O_APPEND
 
 
-class CloseEvent(Event):
+class IoDestroyHandleEvent(Event):
 
     def __init__(self, rank_id, function, start_time, end_time, level, tid, args):
-        super(CloseEvent, self).__init__(rank_id, function, start_time, end_time, level, tid, args)
+        super(IoDestroyHandleEvent, self).__init__(rank_id, function, start_time, end_time, level, tid)
 
         if function in ["close", "fclose"]:
 
             self.path_name = args[0].decode("utf-8")
-            self.paradigm = "POSIX"
+
+
+class IoDuplicateHandleEvent(Event):
+
+    def __init__(self, rank_id, function, start_time, end_time, level, tid):
+        super(IoDuplicateHandleEvent, self).__init__(rank_id, function, start_time, end_time, level, tid)
+
+
+class IoDeleteFileEvent(Event):
+    def __init__(self, rank_id, function, start_time, end_time, level, tid):
+        super(IoDeleteFileEvent, self).__init__(rank_id, function, start_time, end_time, level, tid)
 
 
 class IoEvent(Event):
 
     def __init__(self, rank_id, function, start_time, end_time, level, tid, args):
-        super(IoEvent, self).__init__(rank_id, function, start_time, end_time, level, tid, args)
+        super(IoEvent, self).__init__(rank_id, function, start_time, end_time, level, tid)
 
         self.offset = None
 
@@ -101,7 +121,6 @@ class IoEvent(Event):
             self.type = 0 # 0 -> READ IoOperationMode in OTF2
 
         if function in ["read", "write"]:
-            self.paradigm = "POSIX"
             self.path_name = args[0].decode("utf-8")
             self.size = int(args[2].decode("utf-8"))
 
@@ -111,21 +130,20 @@ class IoEvent(Event):
             print("NOT IMPLEMENTED")
 
         if function in ["fread", "fwrite"]:
-            self.paradigm = "POSIX"
             self.path_name = args[0].decode("utf-8")
             self.size = int(args[1].decode("utf-8")) * int(args[2].decode("utf-8"))
 
         if function in ["pread", "pwrite", "pread64", "pwrite64"]:
-            self.paradigm = "POSIX"
             self.offset = int(args[3].decode("utf-8"))
             self.path_name = args[0].decode("utf-8")
             self.size = int(args[2].decode("utf-8"))
 
 
-class SeekEvent(Event):
+# scorep_posix_io_wrap.c
+class IoSeekEvent(Event):
 
     def __init__(self, rank_id, function, start_time, end_time, level, tid, args):
-        super(SeekEvent, self).__init__(rank_id, function, start_time, end_time, level, tid, args)
+        super(IoSeekEvent, self).__init__(rank_id, function, start_time, end_time, level, tid)
 
         if function in ["lseek", "lseek64", "fseek"]:
             self.paradigm = "POSIX"
@@ -137,9 +155,7 @@ class SeekEvent(Event):
 class PlaceholderEvent(Event):
 
     def __init__(self, rank_id, function, start_time, end_time, level, tid, args):
-        super(PlaceholderEvent, self).__init__(rank_id, function, start_time, end_time, level, tid, args)
-
-
+        super(PlaceholderEvent, self).__init__(rank_id, function, start_time, end_time, level, tid)
 
 
 # #creat

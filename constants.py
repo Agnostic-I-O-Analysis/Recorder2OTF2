@@ -16,6 +16,12 @@ O_NOFOLLOW = 0o400000
 O_NOATIME = 0o1000000
 O_CLOEXEC = 0o2000000
 
+SEEK_SET = 0
+SEEK_CUR = 1
+SEEK_END = 2
+SEEK_DATA = 3
+SEEK_HOLE = 4
+
 
 def check_flag(n, flag):
     n = n & flag
