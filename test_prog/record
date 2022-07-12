@@ -1,0 +1,9 @@
+gcc test_prog.c
+./a.out
+if [[ $? -eq 139 ]]; then
+    echo "segfault"
+    exit 1;
+fi
+rm -rf ./recorder-20220712/*
+RECORDER_WITH_NON_MPI=1 LD_PRELOAD=/usr/local/lib/librecorder.so ./a.out
+mv ./recorder-20220712/* ./recorder-20220712/a
