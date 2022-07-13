@@ -1,9 +1,36 @@
 gcc test_prog.c
 ./a.out
+
 if [[ $? -eq 139 ]]; then
     echo "segfault"
     exit 1;
 fi
-rm -rf ./recorder-20220712/*
+
+rp=$(ls | grep "recorder-.*")
+# sp=$(ls | grep "scorep-.*")
+sp="scorep_trace_out"
+
+if [ -z "$rp" ]
+then
+    echo ""
+else
+      rm -rf $rp
+fi
+
+if [ -z "$sp" ]
+then
+    echo ""
+else
+      rm -rf $sp
+fi
+
 RECORDER_WITH_NON_MPI=1 LD_PRELOAD=/usr/local/lib/librecorder.so ./a.out
-mv ./recorder-20220712/* ./recorder-20220712/a
+/opt/scorep/bin/scorep gcc test_prog.c
+./a.out
+
+
+rp=$(ls | grep "recorder-.*")
+sp=$(ls | grep "scorep-.*")
+
+mv ./$rp/* ./$rp/out
+mv ./$sp/ ./scorep_trace_out/
