@@ -25,6 +25,11 @@ else
 fi
 
 RECORDER_WITH_NON_MPI=1 LD_PRELOAD=/usr/local/lib/librecorder.so ./a.out
+
+
+export SCOREP_ENABLE_TRACING=true
+export SCOREP_ENABLE_PROFILING=true
+
 /opt/scorep/bin/scorep gcc test_prog.c
 ./a.out
 
