@@ -31,7 +31,7 @@ export SCOREP_ENABLE_TRACING=true
 export SCOREP_ENABLE_PROFILING=true
 export SCOREP_EXPERIMENT_DIRECTORY="scorep_trace_out"
 
-/opt/scorep/bin/scorep gcc test_prog.c
+/opt/scorep/bin/scorep --io=posix gcc test_prog.c
 ./a.out
 
 
