@@ -29,6 +29,7 @@ RECORDER_WITH_NON_MPI=1 LD_PRELOAD=/usr/local/lib/librecorder.so ./a.out
 
 export SCOREP_ENABLE_TRACING=true
 export SCOREP_ENABLE_PROFILING=true
+export SCOREP_EXPERIMENT_DIRECTORY="scorep_trace_out"
 
 /opt/scorep/bin/scorep gcc test_prog.c
 ./a.out
@@ -38,4 +39,4 @@ rp=$(ls | grep "recorder-.*")
 sp=$(ls | grep "scorep-.*")
 
 mv ./$rp/* ./$rp/out
-mv ./$sp/ ./scorep_trace_out/
+
