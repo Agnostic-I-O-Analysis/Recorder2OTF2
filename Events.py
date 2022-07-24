@@ -20,7 +20,8 @@ class Event(ABC):
         if function in ["creat", "creat64", "open", "open64", "close", "read", "write", "pread", "pwrite", "pread64",
                         "pwrite64", "readv", "writev", "lseek", "lseek64"]:
             self.paradigm = "POSIX"
-        elif function in ["fopen", "fopen64", "fseek", "fread", "fwrite"]:
+        elif function in ["fopen", "fopen64", "fseek", "fread", "fwrite", "ftell", "fsync", "fdatasync", "fctrl",
+                          "dup", "dup2", "fdopen", "fseeko", "ftello"]:
             self.paradigm = "ISOC"
 
     def get_start_time_ticks(self, timer_resolution):
@@ -38,10 +39,9 @@ class Event(ABC):
             return IoDestroyHandleEvent(rank_id, function, start_time, end_time, level, tid, args)
         elif function in ["read", "write", "pread", "pwrite", "pread64", "pwrite64", "readv", "writev", "fread", "fwrite"]:
             return IoEvent(rank_id, function, start_time, end_time, level, tid, args)
-        elif function in ["lseek", "lseek64", "fseek"]:
+        elif function in ["lseek", "lseek64", "fseek", "fseeko"]:
             return IoSeekEvent(rank_id, function, start_time, end_time, level, tid, args)
         else:
-            #print(f"NOT IMPLEMENTED: {function}")
             return PlaceholderEvent(rank_id, function, start_time, end_time, level, tid, args)
 
     def __repr__(self):
@@ -93,9 +93,6 @@ class IoCreateHandleEvent(Event):
             if constants.check_flag(self.flags, constants.O_NOFOLLOW):
                 self.creation.append(otf2.IoCreationFlag.NO_FOLLOW.value)
 
-            if len(self.creation) == 0:
-                self.creation.append(otf2.IoCreationFlag.NONE.value)
-
             # path missing
             # temporary_file missing
             # large file not implemented/not working in otf2 -> __O_LARGEFILE does nothing
@@ -125,9 +122,6 @@ class IoCreateHandleEvent(Event):
             if constants.check_flag(self.flags, constants.O_NOATIME):
                 self.status.append(otf2.IoStatusFlag.NO_ACCESS_TIME.value)
 
-            if len(self.status) == 0:
-                self.status.append(otf2.IoStatusFlag.NONE.value)
-
         # isoc
         if self.paradigm == "ISOC":
 
@@ -139,6 +133,12 @@ class IoCreateHandleEvent(Event):
                 self.mode = otf2.IoAccessMode.WRITE_ONLY.value
             elif self.mode in ["r+", "w+", "a+"]:
                 self.mode = otf2.IoAccessMode.READ_WRITE.value
+
+        if len(self.status) == 0:
+            self.status.append(otf2.IoStatusFlag.NONE.value)
+
+        if len(self.creation) == 0:
+            self.creation.append(otf2.IoCreationFlag.NONE.value)
 
 
 class IoDestroyHandleEvent(Event):
@@ -171,10 +171,10 @@ class IoEvent(Event):
         self.num_chunks = 1
 
         if function in ["write", "pwrite", "pwrite64", "writev", "fwrite"]:
-            self.type = 1 # 1 -> WRITE IoOperationMode in OTF2
+            self.type = otf2.IoOperationMode.WRITE.value
 
         if function in ["read", "pread", "pread64", "readv", "fread"]:
-            self.type = 0 # 0 -> READ IoOperationMode in OTF2
+            self.type = otf2.IoOperationMode.READ.value
 
         if function in ["read", "write"]:
             self.path_name = args[0].decode("utf-8")
@@ -186,8 +186,9 @@ class IoEvent(Event):
             self.num_chunks = int(args[2].decode("utf-8"))
 
         if function in ["fread", "fwrite"]:
-            self.path_name = args[0].decode("utf-8")
+
             self.size = int(args[1].decode("utf-8")) * int(args[2].decode("utf-8"))
+            self.path_name = args[3].decode("utf-8")
 
         if function in ["pread", "pwrite", "pread64", "pwrite64"]:
             self.offset = int(args[3].decode("utf-8"))

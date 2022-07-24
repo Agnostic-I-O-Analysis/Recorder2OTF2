@@ -35,10 +35,6 @@ def write_otf2_trace(fp_in, fp_out, timer_res):
         io_files = {file_name: trace.definitions.io_regular_file(file_name, scope=generic_system_tree_node) for file_name in files}
 
         io_handles = {}
-        # io_handles = {file_name: trace.definitions.io_handle(file=io_files.get(file_name),
-        #                                                                         name=file_name,
-        #                                                                         io_paradigm=generic_paradigm,
-        #                                                                         io_handle_flags=otf2.IoHandleFlag.NONE) for file_name in files}
 
         location_groups = {f"rank {rank_id}": trace.definitions.location_group(f"rank {rank_id}",
                                                                                system_tree_parent=generic_system_tree_node) for rank_id in range(rank_count)}
@@ -50,11 +46,6 @@ def write_otf2_trace(fp_in, fp_out, timer_res):
             print(f"rank {rank_id}/{rank_count}")
             writer = trace.event_writer_from_location(locations.get(f"rank {rank_id}"))
             for event in sorted([e for e in events if e.rank_id == rank_id and not (e.function.startswith("__") or e.function == "MPI_Bcast")], key=lambda x: x.start_time):
-                # if event.start_time > event.end_time:
-                #     print("SUS:", event.function)
-                #     continue
-
-                # print(event.function, event.start_time, event.end_time, event.rank_id)
                 if regions.get(event.function) is None:
                     s = "MPI I/O" if event.function.startswith("MPI") else "POSIX I/O"
                     regions[event.function] = trace.definitions.region(event.function,
@@ -106,7 +97,6 @@ def write_otf2_trace(fp_in, fp_out, timer_res):
                                             # we take only the first flag for both because the python bindings limitations
                                             creation_flags=tuple(otf2.IoCreationFlag(x) for x in event.creation)[0],
                                             status_flags=tuple(otf2.IoStatusFlag(x) for x in event.status)[0])
-
 
                 elif isinstance(event, Events.IoDestroyHandleEvent):
                     writer.io_destroy_handle(time=event.get_start_time_ticks(timer_res) - t_start,
