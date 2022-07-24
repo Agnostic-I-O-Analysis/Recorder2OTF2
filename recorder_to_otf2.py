@@ -65,21 +65,23 @@ def write_otf2_trace(fp_in, fp_out, timer_res):
                              regions.get(event.function))
 
                 if isinstance(event, Events.IoEvent):
-                    atr = None if event.offset is None else offset_attribute
+                    atr = None if event.offset is None else {offset_attribute: event.offset}
 
-                    writer.io_operation_begin(time=event.get_start_time_ticks(timer_res) - t_start,
-                                              handle=io_handles.get(event.path_name),
-                                              mode=otf2.IoOperationMode(event.type),
-                                              operation_flags=otf2.IoOperationFlag.NONE,
-                                              bytes_request=event.size,
-                                              matching_id=event.level,
-                                              )
-
-                    writer.io_operation_complete(time=event.get_end_time_ticks(timer_res) - t_start,
-                                                 handle=io_handles.get(event.path_name),
-                                                 bytes_result=event.size,
-                                                 matching_id=event.level,
-                                                 attributes={atr: event.offset})
+                    for i, size in zip(range(event.num_chunks), util.split_evenly(event.size, event.num_chunks)):
+                        writer.io_operation_begin(time=event.get_start_time_ticks(timer_res) - t_start,
+                                                  handle=io_handles.get(event.path_name),
+                                                  mode=otf2.IoOperationMode(event.type),
+                                                  operation_flags=otf2.IoOperationFlag.NONE,
+                                                  bytes_request=size,
+                                                  matching_id=event.level+i,
+                                                  attributes=atr
+                                                  )
+                    for i, size in zip(range(event.num_chunks), reversed(util.split_evenly(event.size, event.num_chunks))):
+                        writer.io_operation_complete(time=event.get_end_time_ticks(timer_res) - t_start,
+                                                     handle=io_handles.get(event.path_name),
+                                                     bytes_result=size,
+                                                     matching_id=event.level + (event.num_chunks - (i + 1))
+                                                     )
 
                 if isinstance(event, Events.IoSeekEvent):
                     writer.io_seek(time=event.get_start_time_ticks(timer_res) - t_start,

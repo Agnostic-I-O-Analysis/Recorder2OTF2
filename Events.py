@@ -140,9 +140,6 @@ class IoCreateHandleEvent(Event):
             elif self.mode in ["r+", "w+", "a+"]:
                 self.mode = otf2.IoAccessMode.READ_WRITE.value
 
-            if self.mode in ["a", "a+"]:
-                self.status = constants.O_APPEND
-
 
 class IoDestroyHandleEvent(Event):
 
@@ -171,6 +168,7 @@ class IoEvent(Event):
         super(IoEvent, self).__init__(rank_id, function, start_time, end_time, level, tid)
 
         self.offset = None
+        self.num_chunks = 1
 
         if function in ["write", "pwrite", "pwrite64", "writev", "fwrite"]:
             self.type = 1 # 1 -> WRITE IoOperationMode in OTF2
@@ -183,9 +181,9 @@ class IoEvent(Event):
             self.size = int(args[2].decode("utf-8"))
 
         if function in ["readv", "writev"]:
-            # ToDO: Size ist iwi in einem Struct verpackt
             self.path_name = args[0].decode("utf-8")
-            print("NOT IMPLEMENTED")
+            self.size = int(args[1].decode("utf-8"))
+            self.num_chunks = int(args[2].decode("utf-8"))
 
         if function in ["fread", "fwrite"]:
             self.path_name = args[0].decode("utf-8")
@@ -214,6 +212,7 @@ class PlaceholderEvent(Event):
 
     def __init__(self, rank_id, function, start_time, end_time, level, tid, args):
         super(PlaceholderEvent, self).__init__(rank_id, function, start_time, end_time, level, tid)
+        print(args)
 
 
 # #creat

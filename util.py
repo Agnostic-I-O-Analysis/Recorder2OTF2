@@ -24,3 +24,14 @@ def get_stats_from_recorder(fp):
             events.append(Event.get_event(rank_id, function, start_time, end_time, level, tid, largs))
 
     return files, func_names, events, reader.GM.total_ranks
+
+
+def split_evenly(size: int, num_chunks: int) -> list[int]:
+    part_size = size // num_chunks
+    residue = size % num_chunks
+    factors = [part_size for x in range(num_chunks)]
+    i = 0
+    while residue > 0:
+        factors[i] += 1
+        residue -= 1
+    return sorted(factors)
