@@ -17,13 +17,21 @@ def write_otf2_trace(fp_in, fp_out, timer_res):
                                                                name="POSIX I/O",
                                                                io_paradigm_class=otf2.IoParadigmClass.SERIAL,
                                                                io_paradigm_flags=otf2.IoParadigmFlag.NONE)
+
+        isoc_paradigm = trace.definitions.io_paradigm(identification="ISOC",
+                                                               name="ISOC I/O",
+                                                               io_paradigm_class=otf2.IoParadigmClass.SERIAL,
+                                                               io_paradigm_flags=otf2.IoParadigmFlag.NONE)
+
         mpi_paradigm = trace.definitions.io_paradigm(identification="MPI",
                                                        name="MPI I/O",
                                                        io_paradigm_class=otf2.IoParadigmClass.PARALLEL,
                                                        io_paradigm_flags=otf2.IoParadigmFlag.NONE)
 
+        paradigms = {"POSIX": posix_paradigm, "ISOC": isoc_paradigm, "MPI": mpi_paradigm}
         regions = {}
 
+        offset_attribute = trace.definitions.attribute("Offset", description='Absolute read/write offset within a file.', type=otf2.Type.UINT64)
         io_files = {file_name: trace.definitions.io_regular_file(file_name, scope=generic_system_tree_node) for file_name in files}
 
         io_handles = {}
@@ -57,25 +65,28 @@ def write_otf2_trace(fp_in, fp_out, timer_res):
                              regions.get(event.function))
 
                 if isinstance(event, Events.IoEvent):
+                    atr = None if event.offset is None else offset_attribute
 
                     writer.io_operation_begin(time=event.get_start_time_ticks(timer_res) - t_start,
                                               handle=io_handles.get(event.path_name),
                                               mode=otf2.IoOperationMode(event.type),
                                               operation_flags=otf2.IoOperationFlag.NONE,
                                               bytes_request=event.size,
-                                              matching_id=event.level)
+                                              matching_id=event.level,
+                                              )
 
                     writer.io_operation_complete(time=event.get_end_time_ticks(timer_res) - t_start,
                                                  handle=io_handles.get(event.path_name),
                                                  bytes_result=event.size,
-                                                 matching_id=event.level)
+                                                 matching_id=event.level,
+                                                 attributes={atr: event.offset})
 
                 if isinstance(event, Events.IoSeekEvent):
                     writer.io_seek(time=event.get_start_time_ticks(timer_res) - t_start,
                                    handle=io_handles.get(event.path_name),
                                    offset_request=event.offset,
                                    # IoSeekOption ?
-                                   whence=event.whence,
+                                   whence=otf2.IoSeekOption(event.whence),
                                    offset_result=event.offset)
 
                 elif isinstance(event, Events.IoCreateHandleEvent):
@@ -84,20 +95,16 @@ def write_otf2_trace(fp_in, fp_out, timer_res):
                     if io_handles.get(event.path_name) is None:
                         io_handles[event.path_name] = trace.definitions.io_handle(file=io_files.get(event.path_name),
                                                                                   name=event.path_name,
-                                                                                  io_paradigm=posix_paradigm,
+                                                                                  io_paradigm=paradigms.get(event.paradigm),
                                                                                   io_handle_flags=otf2.IoHandleFlag.NONE)
-
-                    # append mode or not ?
-                    if event.status is None:
-                        sf = otf2.IoStatusFlag(0)
-                    else:
-                        sf = otf2.IoStatusFlag(2) if constants.check_flag(event.status, constants.O_APPEND) else otf2.IoStatusFlag(0)
 
                     writer.io_create_handle(time=event.get_start_time_ticks(timer_res) - t_start,
                                             handle=io_handles.get(event.path_name),
-                                            mode=otf2.IoAccessMode(event.type),
-                                            creation_flags=otf2.IoCreationFlag.NONE,
-                                            status_flags=sf)
+                                            mode=otf2.IoAccessMode(event.mode),
+                                            # we take only the first flag for both because the python bindings limitations
+                                            creation_flags=tuple(otf2.IoCreationFlag(x) for x in event.creation)[0],
+                                            status_flags=tuple(otf2.IoStatusFlag(x) for x in event.status)[0])
+
 
                 elif isinstance(event, Events.IoDestroyHandleEvent):
                     writer.io_destroy_handle(time=event.get_start_time_ticks(timer_res) - t_start,
@@ -117,7 +124,7 @@ def main():
 
     fp_in = args.file
     fp_out = "./trace_out" if args.output is None else args.output
-    timer_res = int(1e9) if args.timer is None else args.timer
+    timer_res = int(1e7) if args.timer is None else args.timer
 
     if os.path.isdir(fp_out):
         #exit(1)

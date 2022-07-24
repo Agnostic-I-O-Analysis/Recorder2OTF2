@@ -44,6 +44,9 @@ class Event(ABC):
             #print(f"NOT IMPLEMENTED: {function}")
             return PlaceholderEvent(rank_id, function, start_time, end_time, level, tid, args)
 
+    def __repr__(self):
+        return f"{self.start_time} : {self.function}"
+
 
 class IoCreateHandleEvent(Event):
 
@@ -52,37 +55,92 @@ class IoCreateHandleEvent(Event):
 
         self.path_name = None
 
-        self.type = None
-        self.status = None
+        self.mode = None
+        self.status = []
+        self.creation = []
 
         # posix
         if self.paradigm == "POSIX":
 
             self.path_name = args[0].decode("utf-8")
-            self.type = int(args[1].decode("utf-8"), 8)
-            if constants.check_flag(self.type, constants.O_RDONLY):
-                self.type = otf2.definitions.IoAccessMode.READ_ONLY.value
-            elif constants.check_flag(self.type, constants.O_WRONLY):
-                self.type = otf2.definitions.IoAccessMode.WRITE_ONLY.value
-            elif constants.check_flag(self.type, constants.O_RDWR):
-                self.type = otf2.definitions.IoAccessMode.READ_WRITE.value
+            self.flags = int(args[1].decode("utf-8"))
 
-            if constants.check_flag(self.type, constants.O_CREAT):
-                self.status = int(args[2].decode("utf-8"), 8)
+            # io mode
+
+            if constants.check_flag(self.flags, constants.O_WRONLY):
+                self.mode = otf2.IoAccessMode.WRITE_ONLY.value
+            elif constants.check_flag(self.flags, constants.O_RDWR):
+                self.mode = otf2.IoAccessMode.READ_WRITE.value
+            else:
+                self.mode = otf2.IoAccessMode.READ_ONLY.value
+
+            # creation flags
+
+            if constants.check_flag(self.flags, constants.O_CREAT):
+                self.creation.append(otf2.IoCreationFlag.CREATE.value)
+
+            if constants.check_flag(self.flags, constants.O_TRUNC):
+                self.creation.append(otf2.IoCreationFlag.TRUNCATE.value)
+
+            # directory missing
+
+            if constants.check_flag(self.flags, constants.O_EXCL):
+                self.creation.append(otf2.IoCreationFlag.EXCLUSIVE.value)
+
+            if constants.check_flag(self.flags, constants.O_NOCTTY):
+                self.creation.append(otf2.IoCreationFlag.NO_CONTROLLING_TERMINAL.value)
+
+            if constants.check_flag(self.flags, constants.O_NOFOLLOW):
+                self.creation.append(otf2.IoCreationFlag.NO_FOLLOW.value)
+
+            if len(self.creation) == 0:
+                self.creation.append(otf2.IoCreationFlag.NONE.value)
+
+            # path missing
+            # temporary_file missing
+            # large file not implemented/not working in otf2 -> __O_LARGEFILE does nothing
+            # no_seek missing
+            # unique missing
+
+            # status flags
+
+            if constants.check_flag(self.flags, constants.O_CLOEXEC):
+                self.status.append(otf2.IoStatusFlag.CLOSE_ON_EXEC.value)
+
+            if constants.check_flag(self.flags, constants.O_APPEND):
+                self.creation.append(otf2.IoStatusFlag.APPEND.value)
+
+            if constants.check_flag(self.flags, constants.O_NONBLOCK):
+                self.status.append(otf2.IoStatusFlag.NON_BLOCKING.value)
+
+            if constants.check_flag(self.flags, constants.FASYNC):
+                self.status.append(otf2.IoStatusFlag.ASYNC.value)
+
+            # sync missing
+            # data_sync missing
+
+            if constants.check_flag(self.flags, constants.O_DIRECT):
+                self.status.append(otf2.IoStatusFlag.AVOID_CACHING.value)
+
+            if constants.check_flag(self.flags, constants.O_NOATIME):
+                self.status.append(otf2.IoStatusFlag.NO_ACCESS_TIME.value)
+
+            if len(self.status) == 0:
+                self.status.append(otf2.IoStatusFlag.NONE.value)
 
         # isoc
         if self.paradigm == "ISOC":
 
             self.path_name = args[0].decode("utf-8")
-            self.type = args[1].decode("utf-8")
-            if self.type in ["r"]:
-                self.type = otf2.definitions.IoAccessMode.READ_ONLY.value
-            elif self.type in ["w", "a"]:
-                self.type = otf2.definitions.IoAccessMode.WRITE_ONLY.value
-            elif self.type in ["r+", "w+", "a+"]:
-                self.type = otf2.definitions.IoAccessMode.READ_WRITE.value
+            self.mode = args[1].decode("utf-8")
+            if self.mode in ["r"]:
+                self.mode = otf2.IoAccessMode.READ_ONLY.value
+            elif self.mode in ["w", "a"]:
+                self.mode = otf2.IoAccessMode.WRITE_ONLY.value
+            elif self.mode in ["r+", "w+", "a+"]:
+                self.mode = otf2.IoAccessMode.READ_WRITE.value
 
-            if self.type in ["a", "a+"]:
+            if self.mode in ["a", "a+"]:
                 self.status = constants.O_APPEND
 
 
