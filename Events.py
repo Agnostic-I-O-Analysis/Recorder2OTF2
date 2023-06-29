@@ -213,7 +213,7 @@ class PlaceholderEvent(Event):
 
     def __init__(self, rank_id, function, start_time, end_time, level, tid, args):
         super(PlaceholderEvent, self).__init__(rank_id, function, start_time, end_time, level, tid)
-        print(args)
+        #print(args)
 
 
 # #creat

@@ -3,7 +3,6 @@ from Events import Event
 
 
 def get_stats_from_recorder(fp):
-
     events = []
     reader = recorder_viz.RecorderReader(fp)
     func_names = reader.funcs
