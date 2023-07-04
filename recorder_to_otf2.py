@@ -16,17 +16,17 @@ def write_otf2_trace(fp_in, fp_out, timer_res):
         root_node = trace.definitions.system_tree_node("root_node")
         generic_system_tree_node = trace.definitions.system_tree_node("dummy", parent=root_node)
         posix_paradigm = trace.definitions.io_paradigm(identification="POSIX",
-                                                               name="POSIX I/O",
+                                                               name="POSIX",
                                                                io_paradigm_class=otf2.IoParadigmClass.SERIAL,
                                                                io_paradigm_flags=otf2.IoParadigmFlag.NONE)
 
         isoc_paradigm = trace.definitions.io_paradigm(identification="ISOC",
-                                                               name="ISOC I/O",
+                                                               name="ISOC",
                                                                io_paradigm_class=otf2.IoParadigmClass.SERIAL,
                                                                io_paradigm_flags=otf2.IoParadigmFlag.NONE)
 
         mpi_paradigm = trace.definitions.io_paradigm(identification="MPI",
-                                                       name="MPI I/O",
+                                                       name="MPI",
                                                        io_paradigm_class=otf2.IoParadigmClass.PARALLEL,
                                                        io_paradigm_flags=otf2.IoParadigmFlag.NONE)
 
@@ -39,31 +39,81 @@ def write_otf2_trace(fp_in, fp_out, timer_res):
         location_groups = {f"rank {rank_id}": trace.definitions.location_group(f"rank {rank_id}", system_tree_parent=generic_system_tree_node) for rank_id in range(rank_count)}
         locations = {f"rank {rank_id}": trace.definitions.location("Master Thread", group=location_groups.get(f"rank {rank_id}")) for rank_id in range(rank_count)}
         t_start = 0
+        
+        modifiedEvents = []
+        trackerEndTime = {}
+        
+        for event in events:
+            if event.rank_id in trackerEndTime:
+                tracked_end_time = trackerEndTime[event.rank_id][0]
+                tracked_key = trackerEndTime[event.rank_id][1]
+                
+                if tracked_end_time > event.start_time:
+                    modifiedEvents.append(Events.Event(event.rank_id,
+                        event.function,
+                        event.start_time,
+                        event.end_time,
+                        event.level, 
+                        event.tid))
+                    
+                    modifiedEvents.append(Events.Event(modifiedEvents[tracked_key].rank_id,
+                        modifiedEvents[tracked_key].function,
+                        event.end_time,
+                        modifiedEvents[tracked_key].end_time,
+                        modifiedEvents[tracked_key].level,
+                        modifiedEvents[tracked_key].tid))
+                        
+                    trackerEndTime[event.rank_id] = [modifiedEvents[tracked_key].end_time, len(modifiedEvents) - 1]
+                    modifiedEvents[tracked_key].end_time = event.start_time
+                else: 
+                    modifiedEvents.append(Events.Event(event.rank_id,
+                        event.function,
+                        event.start_time,
+                        event.end_time,
+                        event.level, 
+                        event.tid))
+                    trackerEndTime[event.rank_id] = [event.end_time, len(modifiedEvents) - 1]
+            else:
+                modifiedEvents.append(Events.Event(event.rank_id,
+                    event.function,
+                    event.start_time,
+                    event.end_time,
+                    event.level, 
+                    event.tid))
+                trackerEndTime[event.rank_id] = [event.end_time, len(modifiedEvents) - 1]
 
+        #testing the modifiedEvents
+        for event in modifiedEvents:
+            start_time = (event.get_start_time_ticks(timer_res) - t_start)
+            end_time = (event.get_end_time_ticks(timer_res) - t_start)
+            print(event.paradigm, " - ", event.rank_id," - ", start_time, " - ", end_time)
+        
         for rank_id in range(rank_count):
             writer = trace.event_writer_from_location(locations.get(f"rank {rank_id}"))
-            for event in sorted([e for e in events if e.rank_id == rank_id and not (e.function.startswith("__") or e.function == "MPI_Bcast")], key=lambda x: x.start_time):
+            
+            for event in sorted([e for e in modifiedEvents if e.rank_id == rank_id and not (e.function.startswith("__") or e.function == "MPI_Bcast")], key=lambda x: x.start_time):
                 if regions.get(event.function) is None:
-                    s = "MPI I/O" if event.function.startswith("MPI") else "POSIX I/O"
-                    regions[event.function] = trace.definitions.region(event.function,
-                                                                       source_file=s,
-                                                                       region_role=otf2.RegionRole.FILE_IO)
+                    s = "MPI" if event.function.startswith("MPI") else "POSIX"
+                    regions[event.function] = trace.definitions.region(event.function, 
+                        source_file=s, 
+                        region_role=otf2.RegionRole.FILE_IO)
                 
                 
                 start_time = (event.get_start_time_ticks(timer_res) - t_start)
                 end_time = (event.get_end_time_ticks(timer_res) - t_start)
                 
-                if event.paradigm == "POSIX": 
+                display = True
+                if display: 
                     writer.enter(start_time, regions.get(event.function))
                     
                     if isinstance(event, Events.IoEvent):
                         atr = None if event.offset is None else {offset_attribute: event.offset}
                         
                         if io_handles.get(event.path_name) is None:
-                            io_handles[event.path_name] = trace.definitions.io_handle(file=io_files.get(event.path_name),
-                                                                                      name=event.path_name,
-                                                                                      io_paradigm=paradigms.get(event.paradigm),
-                                                                                      io_handle_flags=otf2.IoHandleFlag.NONE)
+                            io_handles[event.path_name] = trace.definitions.io_handle(file=io_files.get(event.path_name), 
+                                name=event.path_name, 
+                                io_paradigm=paradigms.get(event.paradigm), 
+                                io_handle_flags=otf2.IoHandleFlag.NONE)
 
                         for i, size in zip(range(event.num_chunks), util.split_evenly(event.size, event.num_chunks)):
                             writer.io_operation_begin(time=start_time,
