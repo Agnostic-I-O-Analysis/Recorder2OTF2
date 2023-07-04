@@ -17,11 +17,13 @@ class Event(ABC):
         self.paradigm = None
 
         # set paradigm
-        if function in ["creat", "creat64", "open", "open64", "close", "read", "write", "pread", "pwrite", "pread64",
-                        "pwrite64", "readv", "writev", "lseek", "lseek64"]:
+        if "MPI_" in function:
+            self.paradigm = "MPI"
+        elif "H5" in function:
+            self.paradigm = "HDF5"
+        elif function in ["creat", "creat64", "open", "open64", "close", "read", "write", "pread", "pwrite", "pread64", "pwrite64", "readv", "writev", "lseek", "lseek64", "unlink", "getcwd", "umask", "fcntl"]:
             self.paradigm = "POSIX"
-        elif function in ["fopen", "fopen64", "fseek", "fread", "fwrite", "ftell", "fsync", "fdatasync", "fctrl",
-                          "dup", "dup2", "fdopen", "fseeko", "ftello"]:
+        elif function in ["fopen", "fopen64", "fseek", "fread", "fwrite", "ftell", "fsync", "fdatasync", "fctrl", "dup", "dup2", "fdopen", "fseeko", "ftello"]:
             self.paradigm = "ISOC"
 
     def get_start_time_ticks(self, timer_resolution):

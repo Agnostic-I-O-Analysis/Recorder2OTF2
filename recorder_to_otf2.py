@@ -41,7 +41,6 @@ def write_otf2_trace(fp_in, fp_out, timer_res):
         t_start = 0
 
         for rank_id in range(rank_count):
-            print(f"rank {rank_id}/{rank_count}")
             writer = trace.event_writer_from_location(locations.get(f"rank {rank_id}"))
             for event in sorted([e for e in events if e.rank_id == rank_id and not (e.function.startswith("__") or e.function == "MPI_Bcast")], key=lambda x: x.start_time):
                 if regions.get(event.function) is None:
@@ -49,24 +48,16 @@ def write_otf2_trace(fp_in, fp_out, timer_res):
                     regions[event.function] = trace.definitions.region(event.function,
                                                                        source_file=s,
                                                                        region_role=otf2.RegionRole.FILE_IO)
-                print(event.function)
+                
+                
                 start_time = (event.get_start_time_ticks(timer_res) - t_start)
                 end_time = (event.get_end_time_ticks(timer_res) - t_start)
                 
-                start_time = int(start_time/10)
-                end_time = int(end_time/10)
-
-                blocked_events = ["unlink", "open64", "read", "umask", "fcntl", "write", "lseek64", "close", "open", "seek"]
-                
-                #if (event.function):
-                if (event.function not in blocked_events): 
+                if event.paradigm == "POSIX": 
                     writer.enter(start_time, regions.get(event.function))
-                    print (event.function, " - ", start_time, " - ", end_time)
                     
                     if isinstance(event, Events.IoEvent):
-                        print("IOEvent - ", event.function)
                         atr = None if event.offset is None else {offset_attribute: event.offset}
-                        print("PATH_NAME: ", event.path_name)
                         
                         if io_handles.get(event.path_name) is None:
                             io_handles[event.path_name] = trace.definitions.io_handle(file=io_files.get(event.path_name),
@@ -75,8 +66,6 @@ def write_otf2_trace(fp_in, fp_out, timer_res):
                                                                                       io_handle_flags=otf2.IoHandleFlag.NONE)
 
                         for i, size in zip(range(event.num_chunks), util.split_evenly(event.size, event.num_chunks)):
-                            print("start_time: ", start_time)
-                            print("handle: ", io_handles.get(event.path_name))
                             writer.io_operation_begin(time=start_time,
                                                       handle=io_handles.get(event.path_name),
                                                       mode=otf2.IoOperationMode(event.type),
@@ -94,7 +83,6 @@ def write_otf2_trace(fp_in, fp_out, timer_res):
                                                          )
 
                     if isinstance(event, Events.IoSeekEvent):
-                        print("IOSeekEvent - ", event.function)
                         writer.io_seek(time=start_time,
                                        handle=io_handles.get(event.path_name),
                                        offset_request=event.offset,
@@ -103,7 +91,6 @@ def write_otf2_trace(fp_in, fp_out, timer_res):
                                        offset_result=event.offset)
 
                     elif isinstance(event, Events.IoCreateHandleEvent):
-                        print("createHandle - ", event.function)
                         if io_handles.get(event.path_name) is None:
                             io_handles[event.path_name] = trace.definitions.io_handle(file=io_files.get(event.path_name),
                                                                                       name=event.path_name,
@@ -118,7 +105,6 @@ def write_otf2_trace(fp_in, fp_out, timer_res):
                                                 status_flags=tuple(otf2.IoStatusFlag(x) for x in event.status)[0])
 
                     elif isinstance(event, Events.IoDestroyHandleEvent):
-                        #print("destroyHandle - ", event.function)
                         writer.io_destroy_handle(time=start_time, handle=io_handles.get(event.path_name))
 
                     writer.leave(end_time, regions.get(event.function))
